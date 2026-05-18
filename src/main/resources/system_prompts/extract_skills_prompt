@@ -1,0 +1,4 @@
+Extract all unique technical skills from the resume text. If a skill appears multiple times
+(e.g., in projects and summary), list it only once. Normalize
+names (e.g., 'ReactJS' and 'React.js' should both be 'React'). Return a JSON array of unique strings.
+resume text: {resumeText}
