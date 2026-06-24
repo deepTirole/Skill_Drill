@@ -13,7 +13,7 @@ public class Skill {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Unique
+    @Column(unique = true, nullable = false)
     private String skillName;
 
     @ManyToMany(mappedBy = "userSkills")

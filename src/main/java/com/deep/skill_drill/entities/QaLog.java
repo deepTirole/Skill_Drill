@@ -1,5 +1,6 @@
 package com.deep.skill_drill.entities;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import org.w3c.dom.Text;
 
@@ -22,6 +23,7 @@ public class QaLog {
 
     @ManyToOne()
     @JoinColumn(name = "interview_id")
+    @JsonIgnore
     private Interview interview;
 
     public Long getId() {
