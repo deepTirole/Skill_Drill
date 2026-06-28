@@ -40,7 +40,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(request -> request
                         .requestMatchers("/auth/register",
                                 "/auth/login",
-                                "/mail/verify-otp",
+                                "/mail/send-otp",
                                 "/mail/verify-otp",
                                 "/mail/resend-otp"
                         ).permitAll()

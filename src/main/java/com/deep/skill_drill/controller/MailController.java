@@ -10,42 +10,34 @@ import com.deep.skill_drill.services.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Arrays;
+import java.util.Map;
+
 @RestController
-@CrossOrigin("*")
 @RequestMapping("/mail")
 public class MailController {
-    @Autowired
-    private MailService mailService;
-    @Autowired
-    private UserService userService;
-    @Autowired
-    private JwtService jwtService;
 
-    @GetMapping("/verify-otp")
-    public ResponseEntity<?> sendOtp(@RequestParam("e") String email) {
-        try {
-            mailService.sendMail(email);
-            return ResponseEntity.ok(new OtpResponse(
-                    "A 6-DIGIT OTP SENT TO YOUR EMAIL", true));
-        }
-        catch (Exception e) {
-            return ResponseEntity.badRequest().body(new  OtpResponse(
-                    "ERROR OCCURRED IN SEND EMAIL", false
-            ));
-        }
+    private final UserService userService;
+    private final MailService mailService;
+
+    public MailController(UserService userService, MailService mailService) {
+        this.userService = userService;
+        this.mailService = mailService;
     }
 
-    @GetMapping("/resend-otp")
-    public ResponseEntity<?> resendOtp(@RequestParam("e") String email) {
+    @PostMapping("/resend-otp")
+    public ResponseEntity<?> resendOtp(@RequestBody String email) {
         try {
-            mailService.sendMail(email);
+            userService.resendOtp(email);
             return ResponseEntity.ok(new OtpResponse(
                     "A 6-DIGIT OTP SENT TO YOUR EMAIL", true));
         }
         catch (Exception e) {
-            return ResponseEntity.badRequest().body(new  OtpResponse(
+            System.out.println(e.getMessage());
+            return ResponseEntity.status(HttpStatus.NO_CONTENT).body(new  OtpResponse(
                     "ERROR OCCURRED IN SEND EMAIL", false
             ));
         }
@@ -53,20 +45,28 @@ public class MailController {
 
     @PostMapping("/verify-otp")
     public ResponseEntity<?> verifyOtp(@RequestBody OtpPayload otpPayload) {
-        if(mailService.verifyOtp(otpPayload.getEmail(), otpPayload.getOtp())) {
-            boolean res = userService.verifyAndEnableUser(otpPayload.getEmail());
-            if(res) {
-                User user    = userService.getUser(otpPayload.getEmail());
-                String token = jwtService.generateJwtToken(user);
-                AuthResponse authResponse = new AuthResponse(token, user);
+        String res = userService.verifyAndEnableUser(otpPayload.getEmail(), otpPayload.getOtp());
 
-                return ResponseEntity.ok(authResponse);
+        return switch (res) {
+            case "SUCCESS" -> {
+                yield ResponseEntity.ok(Map.of("message", "Registration successful"));
             }
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("User with username not found");
-        }
-        else {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Invalid OTP");
-        }
+            case "INVALID_OTP"      -> ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
+                    Map.of("message", "Invalid OTP")
+            );
+            case "TOO_MANY_ATTEMPTS" -> ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(
+                    Map.of("message", "Too many attempts")
+            );
+            case "SESSION_EXPIRED"  -> ResponseEntity.status(HttpStatus.GONE).body(
+                    Map.of("message", "Session expired, please register again")
+            );
+            case "OTP_EXPIRED"      -> ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
+                    Map.of("message", "Otp expired, new otp sent to your email")
+            );
+            default -> ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                    Map.of("message", "Something went wrong")
+            );
+        };
     }
 
 

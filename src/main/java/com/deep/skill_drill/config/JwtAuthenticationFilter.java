@@ -47,14 +47,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
             if(jwtService.isTokenValid(authToken, userDetails)) {
 
-                Boolean isVerified = jwtService.extractVerified(authToken);
                 String role = jwtService.extractRole(authToken);
 
-                List<GrantedAuthority> authorities;
-                if(isVerified)
-                    authorities = List.of(new SimpleGrantedAuthority(role));
-                else
-                    authorities = List.of(new SimpleGrantedAuthority("ROLE_UNVERIFIED"));
+                List<GrantedAuthority> authorities = List.of(new SimpleGrantedAuthority(role));
 
                 UsernamePasswordAuthenticationToken authenticationToken =
                         new UsernamePasswordAuthenticationToken(

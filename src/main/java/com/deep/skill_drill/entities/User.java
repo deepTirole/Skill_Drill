@@ -19,7 +19,6 @@ public class User {
     private String fullname;
     private String password;
     private String role = "ROLE_STUDENT";
-    private boolean isVerified = false;
 
     @CreationTimestamp
     @Column(updatable = false)
@@ -89,14 +88,6 @@ public class User {
 
     public void setRole(String role) {
         this.role = role;
-    }
-
-    public boolean isVerified() {
-        return isVerified;
-    }
-
-    public void setVerified(boolean verified) {
-        isVerified = verified;
     }
 
     public Set<Skill> getUserSkills() {

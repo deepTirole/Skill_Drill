@@ -29,7 +29,6 @@ public class JwtService {
     public String generateJwtToken(User user) {
         Map<String, Object> claims = new HashMap<>();
         claims.put("role", user.getRole());
-        claims.put("isVerified", user.isVerified());
 
         return Jwts.builder().claims().add(claims).and()
                 .subject(user.getUsername())
