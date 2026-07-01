@@ -42,7 +42,9 @@ public class SecurityConfig {
                                 "/auth/login",
                                 "/mail/send-otp",
                                 "/mail/verify-otp",
-                                "/mail/resend-otp"
+                                "/mail/resend-otp",
+                                "/auth/forget-password",
+                                "/auth/reset-password"
                         ).permitAll()
 
                         .requestMatchers("/auth/status").hasAnyRole("STUDENT", "UNVERIFIED")
