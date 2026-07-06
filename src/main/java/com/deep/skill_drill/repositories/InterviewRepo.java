@@ -19,4 +19,6 @@ public interface InterviewRepo extends JpaRepository<Interview,Long> {
     List<RatingPointDto> findRatingHistory(@Param("userId") Long userId);
 
 //    List<QaLog> findAllByInterview_Id(Long interviewId);
+
+    List<Interview> findByUserId(Long userId);
 }

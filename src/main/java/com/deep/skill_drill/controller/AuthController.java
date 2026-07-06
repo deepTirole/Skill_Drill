@@ -3,6 +3,7 @@ package com.deep.skill_drill.controller;
 import com.deep.skill_drill.dto.LoginCredential;
 import com.deep.skill_drill.dto.AuthResponse;
 import com.deep.skill_drill.dto.RegisterDto;
+import com.deep.skill_drill.dto.ResetPassword;
 import com.deep.skill_drill.entities.User;
 import com.deep.skill_drill.services.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,6 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -71,6 +73,39 @@ public class AuthController {
         AuthResponse authResponse = new AuthResponse(response, user1);
 
         return ResponseEntity.ok().body(authResponse);
+    }
+
+    @GetMapping("/forget-password")
+    public ResponseEntity<?> forgetPassword(@RequestParam("email") String email) {
+        try {
+            userService.generateResetToken(email);
+            return ResponseEntity.status(HttpStatus.OK).body(Map.of("message", "Reset link successfully sent"));
+        } catch (RuntimeException e) {
+            System.out.println(e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("message", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<?> resetPassword(@RequestBody ResetPassword dto) {
+        try {
+            userService.resetPassword(dto);
+            return ResponseEntity.status(HttpStatus.OK).body(Map.of(
+                    "SUCCESS", "Password reset successfully"
+            ));
+        } catch (UsernameNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
+                    "message", "Error in resetting password: " + e.getMessage()
+            ));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.NOT_ACCEPTABLE).body(Map.of(
+                    "message", "Error in resetting password: " + e.getMessage()
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
+                    "message", "Error in resetting password: " + e.getMessage()
+            ));
+        }
     }
 
     @GetMapping("/status")

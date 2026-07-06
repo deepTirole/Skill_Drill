@@ -9,6 +9,7 @@ import com.deep.skill_drill.services.UserService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Arrays;
@@ -88,6 +89,23 @@ public class InterviewEngineController {
             );
         } catch (Exception e) {
             throw new RuntimeException(e);
+        }
+    }
+
+    @GetMapping("/my-sessions")
+    public ResponseEntity<?> getMySessions(Authentication authentication) {
+        String username = authentication.getName();
+        try {
+            return ResponseEntity.status(HttpStatus.OK).body(
+                    interviewService.getUserHistory(username)
+            );
+        } catch (UsernameNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                    Map.of("message","No User Exists with This Username"));
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                    Map.of("message",e.getMessage())
+            );
         }
     }
 

@@ -15,6 +15,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.jspecify.annotations.Nullable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -177,5 +178,17 @@ public class InterviewService {
         sessionResult.setRole(interview.getJobRole());
 
         return sessionResult;
+    }
+
+    public List<Interview> getUserHistory(String username) {
+        User user = userRepo.findByUsername(username);
+        if (user == null) {
+            throw new UsernameNotFoundException("User not found!");
+        }
+
+        List<Interview> records = interviewRepo.findByUserId(user.getId());
+
+        if(records.isEmpty()) throw new RuntimeException("No Interview History found!");
+        return records;
     }
 }

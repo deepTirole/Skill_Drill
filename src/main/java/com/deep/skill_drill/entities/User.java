@@ -3,10 +3,12 @@ package com.deep.skill_drill.entities;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.GeneratedColumn;
 
 import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.UUID;
 
 @Entity
 @Table(name = "users")
@@ -26,6 +28,9 @@ public class User {
 
     @Column(nullable = false)
     private Integer rating = 1000;
+
+    private String resetToken = null;
+    private LocalDateTime resetExpiry = null;
 
     @ManyToMany(fetch = FetchType.LAZY, cascade = CascadeType.PERSIST)
     @JoinTable(
@@ -108,6 +113,22 @@ public class User {
 
     public LocalDateTime getCreatedAt() {
         return createdAt;
+    }
+
+    public String getResetToken() {
+        return resetToken;
+    }
+
+    public void setResetToken(String resetToken) {
+        this.resetToken = resetToken;
+    }
+
+    public LocalDateTime getResetExpiry() {
+        return resetExpiry;
+    }
+
+    public void setResetExpiry(LocalDateTime resetExpiry) {
+        this.resetExpiry = resetExpiry;
     }
 
     public void setCreatedAt(LocalDateTime createdAt) {

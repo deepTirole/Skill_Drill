@@ -1,7 +1,6 @@
 package com.deep.skill_drill.services;
 
-import com.deep.skill_drill.dto.LoginCredential;
-import com.deep.skill_drill.dto.RatingPointDto;
+import com.deep.skill_drill.dto.*;
 import com.deep.skill_drill.entities.PendingRegistration;
 import com.deep.skill_drill.entities.Skill;
 import com.deep.skill_drill.entities.User;
@@ -10,12 +9,12 @@ import com.deep.skill_drill.repositories.PendingRepo;
 import com.deep.skill_drill.repositories.SkillRepo;
 import com.deep.skill_drill.repositories.UserRepo;
 import org.jspecify.annotations.Nullable;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,6 +25,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 @Service
 public class UserService {
@@ -157,10 +157,6 @@ public class UserService {
         return userRepo.findByUsername(username);
     }
 
-    public User updateUser(User user) {
-        return userRepo.save(user);
-    }
-
     @Transactional
     public User updateUserSkills(Long userId, List<String> skillName) {
         User user = userRepo.findById(userId).orElse(null);
@@ -219,5 +215,62 @@ public class UserService {
         pending.setAttempts(0);
         pendingRepo.save(pending);
         mailService.sendOtpMail(sanitizedEmail, otp);
+    }
+
+    public void generateResetToken(String email) {
+        User user = userRepo.findByUsername(email);
+
+        if (user == null) {
+            throw new RuntimeException("User not found");
+        }
+
+        String token = UUID.randomUUID().toString();
+        user.setResetToken(token);
+        user.setResetExpiry(LocalDateTime.now().plusMinutes(10));
+        mailService.sendResetPasswordLink(email, token);
+        userRepo.save(user);
+    }
+
+    public void resetPassword(ResetPassword dto) {
+        User user = userRepo.findByResetToken(dto.getToken())
+                .orElse(null);
+
+        if(user == null || user.getResetExpiry().isBefore(LocalDateTime.now())) {
+            throw new UsernameNotFoundException("Invalid Or Expired Token");
+        }
+
+        dto.setPassword(encoder.encode(dto.getPassword()));
+        if(encoder.matches(user.getPassword(), dto.getPassword())) {
+            System.out.println(false);
+            throw new IllegalArgumentException("Password Should Not Match With Previous Password");
+        }
+
+        user.setPassword(dto.getPassword());
+        user.setResetExpiry(null);
+        user.setResetToken(null);
+        userRepo.save(user);
+    }
+
+    @Transactional
+    public void updateUser(UpdateDto user, String username) {
+        User dbUser = userRepo.findByUsername(username);
+        if(dbUser == null) {
+            throw new RuntimeException("User not found");
+        }
+
+        if(user.getFullname() != null) {
+            dbUser.setFullname(user.getFullname());
+        }
+        else if(user.getUsername() != null) {
+            dbUser.setUsername(user.getUsername());
+        }
+        else if(user.getNewPassword() != null &&  user.getCurrentPassword() != null) {
+            if(encoder.matches(user.getCurrentPassword(), dbUser.getPassword())) {
+                dbUser.setPassword(encoder.encode(user.getNewPassword()));
+            }
+            else throw new RuntimeException("Password Mismatch");
+        }
+
+        userRepo.save(dbUser);
     }
 }
