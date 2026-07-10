@@ -1,13 +1,12 @@
 package com.deep.skill_drill.services;
 
 import com.deep.skill_drill.dto.*;
+import com.deep.skill_drill.entities.PendingEmail;
 import com.deep.skill_drill.entities.PendingRegistration;
 import com.deep.skill_drill.entities.Skill;
 import com.deep.skill_drill.entities.User;
-import com.deep.skill_drill.repositories.InterviewRepo;
-import com.deep.skill_drill.repositories.PendingRepo;
-import com.deep.skill_drill.repositories.SkillRepo;
-import com.deep.skill_drill.repositories.UserRepo;
+import com.deep.skill_drill.repositories.*;
+import kotlin.jvm.Throws;
 import org.jspecify.annotations.Nullable;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -38,10 +37,12 @@ public class UserService {
     private final JwtService jwtService;
     private final SkillRepo skillRepo;
     private final InterviewRepo interviewRepo;
+    private final PendingEmailRepo emailRepo;
 
     public UserService(UserRepo userRepo, PendingRepo pendingRepo, BCryptPasswordEncoder encoder,
                        AuthenticationManager authenticationManager, MailService mailService,
-                       JwtService jwtService, SkillRepo skillRepo, InterviewRepo interviewRepo) {
+                       JwtService jwtService, SkillRepo skillRepo, InterviewRepo interviewRepo,
+                       PendingEmailRepo emailRepo) {
         this.userRepo = userRepo;
         this.pendingRepo = pendingRepo;
         this.encoder = encoder;
@@ -50,6 +51,7 @@ public class UserService {
         this.jwtService = jwtService;
         this.skillRepo = skillRepo;
         this.interviewRepo = interviewRepo;
+        this.emailRepo = emailRepo;
     }
 
     // ─── Registration ────────────────────────────────────────────────────────────
@@ -252,7 +254,7 @@ public class UserService {
     }
 
     @Transactional
-    public void updateUser(UpdateDto user, String username) {
+    public void updateUser(UpdateDto user, String username) throws UnsupportedEncodingException {
         User dbUser = userRepo.findByUsername(username);
         if(dbUser == null) {
             throw new RuntimeException("User not found");
@@ -272,5 +274,63 @@ public class UserService {
         }
 
         userRepo.save(dbUser);
+        if(user.getUsername() != null) {
+            String otp = mailService.generateOtp();
+            mailService.sendOtpMail(user.getUsername(), otp);
+        }
+    }
+
+    @Transactional
+    public void initiateEmailUpdate(EmailUpdate dto, String username) {
+        User user = userRepo.findByUsername(username);
+        if(user == null)
+            throw new RuntimeException("User not found");
+
+        if(!encoder.matches(dto.getPassword(), user.getPassword()))
+            throw new RuntimeException("Authentication Failed: Invalid Password");
+
+        if(username.equals(dto.getEmail()))
+            throw new RuntimeException("Current Email Should Not Match With New Email");
+
+        if(userRepo.existsByUsername(dto.getEmail()))
+            throw new RuntimeException("Account With Email already Exists");
+
+        PendingEmail pendingEmail = emailRepo.findByEmail(dto.getEmail());
+        if(pendingEmail == null)
+            pendingEmail = new PendingEmail();
+
+        String otp = mailService.generateOtp();
+        try {
+            mailService.sendEmailUpdateOtp(dto.getEmail(), otp);
+
+            pendingEmail.setEmail(dto.getEmail());
+            pendingEmail.setOtpHash(encoder.encode(otp));
+            pendingEmail.setExpiresAt(LocalDateTime.now().plusMinutes(15));
+
+            emailRepo.save(pendingEmail);
+        } catch (RuntimeException e) {
+            throw new RuntimeException("Error In Sending Email! Try After Some Time");
+        }
+    }
+
+    @Transactional
+    public User finalizeEmailUpdate(OtpPayload dto, String username) {
+        User user  = userRepo.findByUsername(username);
+        if(user == null)
+            throw new RuntimeException("User not found");
+
+        PendingEmail pendingEmail = emailRepo.findByEmail(dto.getEmail());
+        if(pendingEmail == null)
+            throw new RuntimeException("Invalid Email! Try Again From Start");
+
+        if(!encoder.matches(dto.getOtp(), pendingEmail.getOtpHash()) ||
+            LocalDateTime.now().isAfter(pendingEmail.getExpiresAt())
+        )
+            throw new RuntimeException("Invalid Or Expired Otp Try Resend Otp");
+
+        user.setUsername(dto.getEmail());
+        emailRepo.delete(pendingEmail);
+
+        return userRepo.save(user);
     }
 }

@@ -30,10 +30,34 @@ public class MailService {
     public void sendOtpMail(String email, String otp) throws UnsupportedEncodingException {
         SimpleMailMessage message = new SimpleMailMessage();
         message.setTo(email);
-        message.setFrom(String.valueOf(new InternetAddress(senderMail, "Skill_Drill")));
+        message.setFrom(String.valueOf(new InternetAddress(senderMail, "Skill Drill")));
         message.setSubject("OTP Verification");
         message.setText("Your OTP for Skill_Drill account verification: " + otp +
                 "\n\nThis OTP is valid for 10 minutes. Do not share it with anyone.");
+        mailSender.send(message);
+    }
+
+    public void sendEmailUpdateOtp(String targetEmail, String otp) {
+        SimpleMailMessage message = new SimpleMailMessage();
+        message.setTo(targetEmail);
+        try {
+            message.setFrom(String.valueOf(new InternetAddress(senderMail, "Skill Drill")));
+        } catch (UnsupportedEncodingException e) {
+            throw new RuntimeException(e);
+        }
+        message.setSubject("Skill Drill - Verify Your New Email Address");
+
+        String emailBody = "Hello,\n\n"
+                + "We received a request to update the email address associated with your Skill_Drill account to this one.\n\n"
+                + "Please use the following One-Time Password (OTP) to complete the verification process:\n\n"
+                + "OTP: " + otp + "\n\n"
+                + "This code will expire in 15 minutes.\n"
+                + "If you did not request this change, you can safely ignore this email. Your existing account credentials have not been changed.\n\n"
+                + "Best regards,\n"
+                + "The Skill_Drill Engineering Team";
+
+        message.setText(emailBody);
+
         mailSender.send(message);
     }
 
@@ -43,7 +67,7 @@ public class MailService {
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             String frontendLink = "http://localhost:4200/reset-password?token=" + token;
 
-            helper.setFrom(senderMail, "Skill_Drill");
+            helper.setFrom(senderMail, "Skill Drill");
             String htmlContent =
                     "<div style='font-family: Arial, sans-serif; padding: 20px;'>" +
                             "<h2>Welcome to Skill_Drill!</h2>" +
