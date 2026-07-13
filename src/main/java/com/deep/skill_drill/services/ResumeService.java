@@ -90,8 +90,9 @@ public class ResumeService {
     public @Nullable ResumeMetaDto getResume(String username) {
         ResumeMetadata resumeMetadata = resumeRepo
                 .findByUserUsername(username).orElse(null);
+
         if(resumeMetadata == null) {
-            return null;
+            throw new RuntimeException("No resume found for username: " + username);
         }
 
         ResumeMetaDto resumeMetaDto = new ResumeMetaDto();

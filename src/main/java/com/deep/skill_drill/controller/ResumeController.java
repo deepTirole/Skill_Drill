@@ -1,6 +1,7 @@
 package com.deep.skill_drill.controller;
 
 import com.deep.skill_drill.dto.ResumeMetaDto;
+import com.deep.skill_drill.entities.ResumeMetadata;
 import com.deep.skill_drill.entities.Skill;
 import com.deep.skill_drill.entities.User;
 import com.deep.skill_drill.repositories.ResumeRepo;
@@ -16,10 +17,10 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Set;
 
 @RestController
-@CrossOrigin(origins = "http://localhost:4200")
 @RequestMapping("/resume")
 public class ResumeController {
 
@@ -51,14 +52,14 @@ public class ResumeController {
     public ResponseEntity<?> getResume(
             Authentication authentication
     ) {
-        String username = authentication.getName();
-        if(username==null)
-            throw new UsernameNotFoundException("Username not found");
-        ResumeMetaDto resume = resumeService.getResume(username);
-        if(resume==null)
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
-
-        return ResponseEntity.ok(resume);
+        String username =  authentication.getName();
+        try {
+            return ResponseEntity.status(HttpStatus.OK)
+                    .body(resumeService.getResume(username));
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("message", e.getMessage()));
+        }
     }
 
     @GetMapping("/get_user_skills")
