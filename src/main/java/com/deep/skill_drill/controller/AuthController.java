@@ -8,7 +8,9 @@ import com.deep.skill_drill.entities.User;
 import com.deep.skill_drill.services.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
@@ -64,15 +66,22 @@ public class AuthController {
     public ResponseEntity<?> loginUser(@RequestBody LoginCredential user) {
         String response = this.userService.verifyUser(user);
 
+        ResponseCookie cookie = ResponseCookie.from("jwt-token", response)
+                .httpOnly(true)
+                .secure(true)
+                .path("/")
+                .maxAge(60 * 60 * 2)
+                .sameSite("Lax")
+                .build();
+
         if("Invalid username or password".equals(response))
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
                     Map.of("error", "Invalid credentials.")
             );
 
-        User user1 = userService.getUser(user.getUsername());
-        AuthResponse authResponse = new AuthResponse(response, user1);
-
-        return ResponseEntity.ok().body(authResponse);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, cookie.toString())
+                .body(Map.of("message", "User logged in successfully"));
     }
 
     @GetMapping("/forget-password")

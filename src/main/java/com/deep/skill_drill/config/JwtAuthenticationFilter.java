@@ -3,6 +3,7 @@ package com.deep.skill_drill.config;
 import com.deep.skill_drill.services.JwtService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,16 +28,26 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     @Autowired
     private UserDetailsService userDetailsService;
 
+    public String parseTokenFromCookie(HttpServletRequest request) {
+        if(request.getCookies() != null) {
+            for (Cookie cookie : request.getCookies()) {
+                if ("jwt-token".equals(cookie.getName())) {
+                    return cookie.getValue();
+                }
+            }
+        }
+        return null;
+    }
+
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
-        final String authHeader = request.getHeader("Authorization");
+        String authToken = parseTokenFromCookie(request);
 
-        if(authHeader == null || !authHeader.startsWith("Bearer ")) {
-            filterChain.doFilter(request, response);
+        if(authToken == null || authToken.trim().isEmpty()) {
+            filterChain.doFilter(request,response);
             return;
         }
 
-        String authToken = authHeader.substring(7);
         String username  = jwtService.extractUsername(authToken);
 
         Authentication authentication =
