@@ -12,14 +12,12 @@ import com.deep.skill_drill.repositories.InterviewRepo;
 import com.deep.skill_drill.repositories.QaLogsRepo;
 import com.deep.skill_drill.repositories.UserRepo;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.persistence.EntityNotFoundException;
 import org.jspecify.annotations.Nullable;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -27,21 +25,18 @@ import java.util.List;
 public class InterviewService {
 
     private final InterviewRepo interviewRepo;
+    private final QaLogsRepo qaLogsRepo;
     private final QaLogService qaLogService;
     private final AiService aiService;
     private final UserRepo userRepo;
     private final RatingService ratingService;
     private final ObjectMapper objectMapper;
 
-    @Autowired
-    @Lazy
-    private InterviewService self;
-    @Autowired
-    private QaLogsRepo qaLogsRepo;
-
-    public InterviewService(InterviewRepo interviewRepo, AiService aiService, UserRepo userRepo,
-                            RatingService ratingService, QaLogService qaLogService,  ObjectMapper objectMapper) {
+    public InterviewService(InterviewRepo interviewRepo, QaLogsRepo qaLogsRepo, AiService aiService,
+                            UserRepo userRepo, RatingService ratingService,
+                            QaLogService qaLogService, ObjectMapper objectMapper) {
         this.interviewRepo = interviewRepo;
+        this.qaLogsRepo = qaLogsRepo;
         this.aiService = aiService;
         this.userRepo = userRepo;
         this.ratingService = ratingService;
@@ -51,9 +46,8 @@ public class InterviewService {
 
     @Transactional
     public InterviewDTO fetchAndSaveInterview(String jobRole, Long userId) {
-        // unchanged
         User user = userRepo.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new EntityNotFoundException("User not found with ID: " + userId));
 
         Interview interview = new Interview();
         interview.setStatus("Pending");
@@ -72,7 +66,6 @@ public class InterviewService {
     }
 
     private InterviewDTO sendInterview(Interview savedInterview, Long userId) {
-        // unchanged
         InterviewDTO interviewDTO = new InterviewDTO();
         interviewDTO.setId(savedInterview.getId());
         interviewDTO.setRole(savedInterview.getJobRole());
@@ -82,7 +75,6 @@ public class InterviewService {
         return interviewDTO;
     }
 
-    // ── new helper: QaLog entity → QaLogDTO ───────────────────────────────
     private QaLogDTO toQaLogDTO(QaLog log) {
         QaLogDTO dto = new QaLogDTO();
         dto.setId(log.getId());
@@ -90,11 +82,9 @@ public class InterviewService {
         dto.setUserAnswer(log.getUserAnswer());
 
         try {
-            AiCritiqueDTO critique = objectMapper
-                    .readValue(log.getAiFeedback(), AiCritiqueDTO.class);
+            AiCritiqueDTO critique = objectMapper.readValue(log.getAiFeedback(), AiCritiqueDTO.class);
             dto.setAiCritique(critique);
         } catch (Exception e) {
-            // AI returned malformed JSON — safe fallback
             AiCritiqueDTO fallback = new AiCritiqueDTO();
             fallback.setScore(0.0);
             fallback.setStrengths(List.of());
@@ -106,20 +96,20 @@ public class InterviewService {
     }
 
     @Transactional
-    public @Nullable SessionResult calFinalScore(Long sId, AnswerSubmitDTO finalAnswer) {
-
+    public @Nullable SessionResult calculateFinalScore(Long sessionId, AnswerSubmitDTO finalAnswer) {
         QaLog qaLogToSave = qaLogsRepo.findById(finalAnswer.getQaLogId())
-                .orElseThrow(() -> new RuntimeException("QaLog not found"));
+                .orElseThrow(() -> new EntityNotFoundException("QaLog not found for ID: " + finalAnswer.getQaLogId()));
+
         qaLogToSave.setUserAnswer(finalAnswer.getUserResponse());
 
         String res = aiService.generateResponse(qaLogToSave);
         qaLogToSave.setAiFeedback(res);
         qaLogsRepo.save(qaLogToSave);
 
-        Interview interview = interviewRepo.findById(sId)
-                .orElseThrow(() -> new RuntimeException("Interview not found"));
+        Interview interview = interviewRepo.findById(sessionId)
+                .orElseThrow(() -> new EntityNotFoundException("Interview not found for ID: " + sessionId));
 
-        List<QaLog> allInterviewQuestions = qaLogsRepo.findAllByInterviewId(sId);
+        List<QaLog> allInterviewQuestions = qaLogsRepo.findAllByInterviewId(sessionId);
 
         List<QaLogDTO> dtos = allInterviewQuestions.stream()
                 .map(this::toQaLogDTO)
@@ -131,27 +121,24 @@ public class InterviewService {
                 .orElse(0.0);
 
         User user = interview.getUser();
-
         int updatedRating = ratingService.dynamicRatingUpdate(user.getRating(), finalScore);
         int eloChange = updatedRating - user.getRating();
 
-        // persist everything
         user.setRating(updatedRating);
         interview.setRatingAfter(updatedRating);
         interview.setEloChange(eloChange);
         interview.setCompletionTime(LocalDateTime.now());
         interview.setStatus("Completed");
         interview.setFinalScore(String.valueOf(finalScore));
+
         userRepo.save(user);
         interviewRepo.save(interview);
 
-        // build SessionResult with ALL fields
         SessionResult sessionResult = new SessionResult();
-
-        sessionResult.setInterview(interview);                          // full interview object
-        sessionResult.setFinalScore(finalScore);                        // averaged score
-        sessionResult.setEloChange(eloChange);                         // delta (can be negative)
-        sessionResult.setNewElo(updatedRating);                        // absolute new rating
+        sessionResult.setInterview(interview);
+        sessionResult.setFinalScore(finalScore);
+        sessionResult.setEloChange(eloChange);
+        sessionResult.setNewElo(updatedRating);
         sessionResult.setQaLogs(dtos);
         sessionResult.setRole(interview.getJobRole());
 
@@ -160,20 +147,15 @@ public class InterviewService {
 
     public @Nullable SessionResult getHistoryById(Long sessionId) {
         Interview interview = interviewRepo.findById(sessionId)
-                .orElseThrow(() -> new RuntimeException("Session not found"));
+                .orElseThrow(() -> new EntityNotFoundException("Session not found for ID: " + sessionId));
 
-        // ③ fix: was missing qaLogs entirely
         List<QaLog> logs = qaLogsRepo.findAllByInterviewId(sessionId);
 
         SessionResult sessionResult = new SessionResult();
         sessionResult.setInterview(interview);
         sessionResult.setNewElo(interview.getRatingAfter());
         sessionResult.setFinalScore(Double.parseDouble(interview.getFinalScore()));
-        sessionResult.setQaLogs(
-                logs.stream()
-                        .map(this::toQaLogDTO)
-                        .toList()
-        );
+        sessionResult.setQaLogs(logs.stream().map(this::toQaLogDTO).toList());
         sessionResult.setEloChange(interview.getEloChange());
         sessionResult.setRole(interview.getJobRole());
 
@@ -183,12 +165,13 @@ public class InterviewService {
     public List<Interview> getUserHistory(String username) {
         User user = userRepo.findByUsername(username);
         if (user == null) {
-            throw new UsernameNotFoundException("User not found!");
+            throw new UsernameNotFoundException("User not found: " + username);
         }
 
         List<Interview> records = interviewRepo.findByUserId(user.getId());
-
-        if(records.isEmpty()) throw new RuntimeException("No Interview History found!");
+        if (records.isEmpty()) {
+            throw new EntityNotFoundException("No Interview History found for user: " + username);
+        }
         return records;
     }
 }

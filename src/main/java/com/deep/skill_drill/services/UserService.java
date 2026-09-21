@@ -6,14 +6,13 @@ import com.deep.skill_drill.entities.PendingRegistration;
 import com.deep.skill_drill.entities.Skill;
 import com.deep.skill_drill.entities.User;
 import com.deep.skill_drill.repositories.*;
-import kotlin.jvm.Throws;
+import jakarta.persistence.EntityNotFoundException;
 import org.jspecify.annotations.Nullable;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -54,19 +53,15 @@ public class UserService {
         this.emailRepo = emailRepo;
     }
 
-    // ─── Registration ────────────────────────────────────────────────────────────
-
     @Transactional
     public void registerUser(User user) {
-        // 1. Block if already a verified user
         if (userRepo.findByUsername(user.getUsername()) != null) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Username already exists");
         }
 
         String otp = mailService.generateOtp();
-
-        // 2. If pending entry exists — refresh OTP and resend
         PendingRegistration existing = pendingRepo.findByUsername(user.getUsername());
+
         if (existing != null) {
             existing.setOtpHash(encoder.encode(otp));
             existing.setAttempts(0);
@@ -76,7 +71,6 @@ public class UserService {
             return;
         }
 
-        // 3. New registration — save to pending, NOT users table
         PendingRegistration pending = new PendingRegistration();
         pending.setUsername(user.getUsername());
         pending.setFullname(user.getFullname());
@@ -92,19 +86,15 @@ public class UserService {
             mailService.sendOtpMail(pending.getUsername(), otp);
         } catch (Exception e) {
             pendingRepo.delete(pending);
-            throw new RuntimeException("Failed to send OTP email. Please try again.");
+            throw new IllegalStateException("Failed to send OTP email. Please try again.");
         }
     }
-
-    // ─── OTP Verification ────────────────────────────────────────────────────────
 
     @Transactional
     public String verifyAndEnableUser(String username, String otp) {
         PendingRegistration pending = pendingRepo.findByUsername(username);
 
-        if (pending == null) {
-            return "SESSION_EXPIRED";
-        }
+        if (pending == null) return "SESSION_EXPIRED";
 
         if (LocalDateTime.now().isAfter(pending.getExpiresAt())) {
             String newOtp = mailService.generateOtp();
@@ -136,8 +126,6 @@ public class UserService {
         return "SUCCESS";
     }
 
-    // ─── Login ───────────────────────────────────────────────────────────────────
-
     public String verifyUser(LoginCredential user) {
         User freshUser = userRepo.findByUsername(user.getUsername());
         try {
@@ -150,10 +138,8 @@ public class UserService {
         } catch (BadCredentialsException e) {
             return "Invalid username or password";
         }
-        throw new RuntimeException("Authentication Failed");
+        throw new BadCredentialsException("Authentication Failed");
     }
-
-    // ─── User Queries ─────────────────────────────────────────────────────────────
 
     public User getUser(String username) {
         return userRepo.findByUsername(username);
@@ -162,14 +148,11 @@ public class UserService {
     @Transactional
     public User updateUserSkills(Long userId, List<String> skillName) {
         User user = userRepo.findById(userId).orElse(null);
-        if (user == null) {
-            return null;
-        }
+        if (user == null) return null;
 
         Set<Skill> userSkills = user.getUserSkills();
         for (String name : skillName) {
             String normalizedSkill = name.trim().toLowerCase();
-
             Skill skill = skillRepo.findBySkillName(normalizedSkill)
                     .orElseGet(() -> {
                         Skill newSkill = new Skill();
@@ -178,13 +161,11 @@ public class UserService {
                     });
             userSkills.add(skill);
         }
-
         return userRepo.save(user);
     }
 
     public @Nullable List<RatingPointDto> getInterviewRatingHistory(String username) {
         User user = userRepo.findByUsername(username);
-
         List<RatingPointDto> history = interviewRepo.findRatingHistory(user.getId());
 
         RatingPointDto start = new RatingPointDto();
@@ -201,19 +182,13 @@ public class UserService {
     @Transactional
     public void resendOtp(String email) throws UnsupportedEncodingException {
         String sanitizedEmail = email != null ? email.trim().toLowerCase() : "";
-        System.out.println(sanitizedEmail);
-        PendingRegistration pending =
-                pendingRepo.findByUsername(sanitizedEmail);
+        PendingRegistration pending = pendingRepo.findByUsername(sanitizedEmail);
 
-        if(pending == null)
-            throw new RuntimeException("Session expired!!");
+        if (pending == null) throw new IllegalArgumentException("Session expired!");
 
         String otp = mailService.generateOtp();
-
-        pending.setOtpHash(
-                encoder.encode(otp));
-        pending.setExpiresAt(
-                LocalDateTime.now().plusMinutes(10));
+        pending.setOtpHash(encoder.encode(otp));
+        pending.setExpiresAt(LocalDateTime.now().plusMinutes(10));
         pending.setAttempts(0);
         pendingRepo.save(pending);
         mailService.sendOtpMail(sanitizedEmail, otp);
@@ -221,10 +196,7 @@ public class UserService {
 
     public void generateResetToken(String email) {
         User user = userRepo.findByUsername(email);
-
-        if (user == null) {
-            throw new RuntimeException("User not found");
-        }
+        if (user == null) throw new EntityNotFoundException("User not found");
 
         String token = UUID.randomUUID().toString();
         user.setResetToken(token);
@@ -234,16 +206,14 @@ public class UserService {
     }
 
     public void resetPassword(ResetPassword dto) {
-        User user = userRepo.findByResetToken(dto.getToken())
-                .orElse(null);
+        User user = userRepo.findByResetToken(dto.getToken()).orElse(null);
 
-        if(user == null || user.getResetExpiry().isBefore(LocalDateTime.now())) {
-            throw new UsernameNotFoundException("Invalid Or Expired Token");
+        if (user == null || user.getResetExpiry().isBefore(LocalDateTime.now())) {
+            throw new IllegalArgumentException("Invalid or Expired Token");
         }
 
         dto.setPassword(encoder.encode(dto.getPassword()));
-        if(encoder.matches(user.getPassword(), dto.getPassword())) {
-            System.out.println(false);
+        if (encoder.matches(user.getPassword(), dto.getPassword())) {
             throw new IllegalArgumentException("Password Should Not Match With Previous Password");
         }
 
@@ -256,25 +226,22 @@ public class UserService {
     @Transactional
     public void updateUser(UpdateDto user, String username) throws UnsupportedEncodingException {
         User dbUser = userRepo.findByUsername(username);
-        if(dbUser == null) {
-            throw new RuntimeException("User not found");
-        }
+        if (dbUser == null) throw new EntityNotFoundException("User not found");
 
-        if(user.getFullname() != null) {
+        if (user.getFullname() != null) {
             dbUser.setFullname(user.getFullname());
-        }
-        else if(user.getUsername() != null) {
+        } else if (user.getUsername() != null) {
             dbUser.setUsername(user.getUsername());
-        }
-        else if(user.getNewPassword() != null &&  user.getCurrentPassword() != null) {
-            if(encoder.matches(user.getCurrentPassword(), dbUser.getPassword())) {
+        } else if (user.getNewPassword() != null && user.getCurrentPassword() != null) {
+            if (encoder.matches(user.getCurrentPassword(), dbUser.getPassword())) {
                 dbUser.setPassword(encoder.encode(user.getNewPassword()));
+            } else {
+                throw new IllegalArgumentException("Password Mismatch");
             }
-            else throw new RuntimeException("Password Mismatch");
         }
 
         userRepo.save(dbUser);
-        if(user.getUsername() != null) {
+        if (user.getUsername() != null) {
             String otp = mailService.generateOtp();
             mailService.sendOtpMail(user.getUsername(), otp);
         }
@@ -283,54 +250,48 @@ public class UserService {
     @Transactional
     public void initiateEmailUpdate(EmailUpdate dto, String username) {
         User user = userRepo.findByUsername(username);
-        if(user == null)
-            throw new RuntimeException("User not found");
+        if (user == null) throw new EntityNotFoundException("User not found");
 
-        if(!encoder.matches(dto.getPassword(), user.getPassword()))
-            throw new RuntimeException("Authentication Failed: Invalid Password");
-
-        if(username.equals(dto.getEmail()))
-            throw new RuntimeException("Current Email Should Not Match With New Email");
-
-        if(userRepo.existsByUsername(dto.getEmail()))
-            throw new RuntimeException("Account With Email already Exists");
+        if (!encoder.matches(dto.getPassword(), user.getPassword())) {
+            throw new IllegalArgumentException("Authentication Failed: Invalid Password");
+        }
+        if (username.equals(dto.getEmail())) {
+            throw new IllegalArgumentException("Current Email Should Not Match With New Email");
+        }
+        if (userRepo.existsByUsername(dto.getEmail())) {
+            throw new IllegalArgumentException("Account With Email already Exists");
+        }
 
         PendingEmail pendingEmail = emailRepo.findByEmail(dto.getEmail());
-        if(pendingEmail == null)
-            pendingEmail = new PendingEmail();
+        if (pendingEmail == null) pendingEmail = new PendingEmail();
 
         String otp = mailService.generateOtp();
         try {
             mailService.sendEmailUpdateOtp(dto.getEmail(), otp);
-
             pendingEmail.setEmail(dto.getEmail());
             pendingEmail.setOtpHash(encoder.encode(otp));
             pendingEmail.setExpiresAt(LocalDateTime.now().plusMinutes(15));
-
             emailRepo.save(pendingEmail);
         } catch (RuntimeException e) {
-            throw new RuntimeException("Error In Sending Email! Try After Some Time");
+            throw new IllegalStateException("Error In Sending Email! Try After Some Time");
         }
     }
 
     @Transactional
     public User finalizeEmailUpdate(OtpPayload dto, String username) {
-        User user  = userRepo.findByUsername(username);
-        if(user == null)
-            throw new RuntimeException("User not found");
+        User user = userRepo.findByUsername(username);
+        if (user == null) throw new EntityNotFoundException("User not found");
 
         PendingEmail pendingEmail = emailRepo.findByEmail(dto.getEmail());
-        if(pendingEmail == null)
-            throw new RuntimeException("Invalid Email! Try Again From Start");
+        if (pendingEmail == null) throw new EntityNotFoundException("Invalid Email! Try Again From Start");
 
-        if(!encoder.matches(dto.getOtp(), pendingEmail.getOtpHash()) ||
-            LocalDateTime.now().isAfter(pendingEmail.getExpiresAt())
-        )
-            throw new RuntimeException("Invalid Or Expired Otp Try Resend Otp");
+        if (!encoder.matches(dto.getOtp(), pendingEmail.getOtpHash()) ||
+                LocalDateTime.now().isAfter(pendingEmail.getExpiresAt())) {
+            throw new IllegalArgumentException("Invalid Or Expired Otp. Try Resend Otp");
+        }
 
         user.setUsername(dto.getEmail());
         emailRepo.delete(pendingEmail);
-
         return userRepo.save(user);
     }
 }

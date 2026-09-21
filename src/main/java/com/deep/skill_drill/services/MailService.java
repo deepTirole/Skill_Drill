@@ -4,7 +4,6 @@ import com.deep.skill_drill.dto.ResetPassword;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeMessage;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
@@ -17,8 +16,11 @@ import java.util.Random;
 @Service
 public class MailService {
 
-    @Autowired
-    private JavaMailSender mailSender;
+    private final JavaMailSender mailSender;
+
+    public MailService(JavaMailSender mailSender) {
+        this.mailSender = mailSender;
+    }
 
     @Value("${spring.mail.username}")
     private String senderMail;
@@ -43,7 +45,7 @@ public class MailService {
         try {
             message.setFrom(String.valueOf(new InternetAddress(senderMail, "Skill Drill")));
         } catch (UnsupportedEncodingException e) {
-            throw new RuntimeException(e);
+            throw new IllegalStateException("Failed to configure sender address for OTP email.", e);
         }
         message.setSubject("Skill Drill - Verify Your New Email Address");
 
@@ -57,7 +59,6 @@ public class MailService {
                 + "The Skill_Drill Engineering Team";
 
         message.setText(emailBody);
-
         mailSender.send(message);
     }
 
@@ -73,30 +74,21 @@ public class MailService {
                             "<h2>Welcome to Skill_Drill!</h2>" +
                             "<p>Click the button below to reset your password:</p>" +
                             "<a href='" + frontendLink + "' style='" +
-                            "display: inline-block; " +
-                            "padding: 10px 20px; " +
-                            "color: white; " +
-                            "background-color: #22c55e; " +
-                            "text-decoration: none; " +
-                            "border-radius: 5px; " +
-                            "font-weight: bold;'>" +
-                            "Reset My Password" +
-                            "</a>" +
+                            "display: inline-block; padding: 10px 20px; color: white; " +
+                            "background-color: #22c55e; text-decoration: none; border-radius: 5px; font-weight: bold;'>" +
+                            "Reset My Password</a>" +
                             "<p style='color: #666; font-size: 12px; margin-top: 20px;'>" +
                             "If the button doesn't work, copy and paste this link into your browser:<br>" +
-                            frontendLink +
-                            "</p>" +
-                            "</div>";
+                            frontendLink + "</p></div>";
 
             helper.setTo(toEmail);
             helper.setSubject("Reset Your Account Password");
-
             helper.setText(htmlContent, true);
 
             mailSender.send(message);
 
         } catch (MessagingException | UnsupportedEncodingException e) {
-            throw new RuntimeException("Failed to send email: " + e.getMessage());
+            throw new IllegalStateException("Failed to construct or send the password reset email.", e);
         }
     }
 }

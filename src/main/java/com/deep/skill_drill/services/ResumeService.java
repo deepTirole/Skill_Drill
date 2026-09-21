@@ -6,6 +6,7 @@ import com.deep.skill_drill.entities.Skill;
 import com.deep.skill_drill.entities.User;
 import com.deep.skill_drill.repositories.ResumeRepo;
 import com.deep.skill_drill.repositories.UserRepo;
+import jakarta.persistence.EntityNotFoundException;
 import org.apache.tika.Tika;
 import org.apache.tika.exception.TikaException;
 import org.jspecify.annotations.Nullable;
@@ -41,35 +42,21 @@ public class ResumeService {
     }
 
     @Value("classpath:system_prompts/extract_skills_prompt.st")
-    private Resource sys_prompt_extract_skills;
+    private Resource sysPromptExtractSkills;
 
-    @Value("classpath:system_prompts/generate_questions_prompt.st")
-    private Resource sys_prompt_generate_questions;
-    @Value("classpath:user_prompts/generate_questions_prompt.st")
-    private Resource user_prompt_generate_questions;
-
-    @Value("classpath:system_prompts/gen_res_prompt.st")
-    private Resource generate_response;
-    @Value("classpath:user_prompts/gen_res_user_prompt.st")
-    private Resource user_prompt_gen_res;
-
-    //Converting resume doc to plain java string.
     public String parseResume(MultipartFile file) throws TikaException, IOException {
-
         Tika tika = new Tika();
         return tika.parseToString(file.getInputStream());
     }
 
-    // Extracting technical skills from that plain string.
-    public List<String> extractSkills(String resumeText) throws TikaException, IOException {
+    public List<String> extractSkills(String resumeText) {
         return chatClient.prompt()
-                .system(system -> system.text(sys_prompt_extract_skills)
+                .system(system -> system.text(sysPromptExtractSkills)
                         .param("resumeText", resumeText))
                 .call()
                 .entity(new ParameterizedTypeReference<List<String>>() {});
     }
 
-    // Send those skills to the user repository to save in the database.
     public User saveResume(MultipartFile file, User user) throws IOException, TikaException {
         String resumeText = this.parseResume(file);
         List<String> extractedSkills = this.extractSkills(resumeText);
@@ -89,11 +76,8 @@ public class ResumeService {
 
     public @Nullable ResumeMetaDto getResume(String username) {
         ResumeMetadata resumeMetadata = resumeRepo
-                .findByUserUsername(username).orElse(null);
-
-        if(resumeMetadata == null) {
-            throw new RuntimeException("No resume found for username: " + username);
-        }
+                .findByUserUsername(username)
+                .orElseThrow(() -> new EntityNotFoundException("No resume found for username: " + username));
 
         ResumeMetaDto resumeMetaDto = new ResumeMetaDto();
         resumeMetaDto.setFilename(resumeMetadata.getFileName());
@@ -104,11 +88,9 @@ public class ResumeService {
 
     public Set<Skill> getUserSkills(String username) {
         User user = userRepo.findByUsername(username);
-        if(user == null) {
-            return null;
+        if (user == null) {
+            throw new EntityNotFoundException("User not found: " + username);
         }
-
         return user.getUserSkills();
     }
-
 }

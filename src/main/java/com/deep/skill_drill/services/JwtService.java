@@ -19,10 +19,10 @@ import java.util.function.Function;
 public class JwtService {
 
     @Value("${jwt.secret}")
-    private String secret_key;
+    private String secretKey;
 
     private SecretKey getKey() {
-        byte[] keyBytes = Decoders.BASE64.decode(this.secret_key);
+        byte[] keyBytes = Decoders.BASE64.decode(this.secretKey);
         return Keys.hmacShaKeyFor(keyBytes);
     }
 
@@ -30,10 +30,11 @@ public class JwtService {
         Map<String, Object> claims = new HashMap<>();
         claims.put("role", user.getRole());
 
-        return Jwts.builder().claims().add(claims).and()
+        return Jwts.builder()
+                .claims(claims)
                 .subject(user.getUsername())
-                .issuedAt(new Date(System.currentTimeMillis()))
-                .expiration(new Date(System.currentTimeMillis() + 1000*60*120))
+                .issuedAt(new Date())
+                .expiration(new Date(System.currentTimeMillis() + 1000 * 60 * 120))
                 .signWith(getKey())
                 .compact();
     }
@@ -48,8 +49,7 @@ public class JwtService {
     }
 
     private Claims extractClaims(String authToken) {
-        return Jwts
-                .parser()
+        return Jwts.parser()
                 .verifyWith(getKey())
                 .build()
                 .parseSignedClaims(authToken)

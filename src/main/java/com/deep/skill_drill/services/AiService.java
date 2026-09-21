@@ -21,55 +21,47 @@ public class AiService {
     private final ChatClient openAiChatClient;
 
     public AiService(
-            @Qualifier("googleGenAiChatClient") ChatClient client,
-            @Qualifier("openAiChatClient") ChatClient client2
+            @Qualifier("googleGenAiChatClient") ChatClient geminiClient,
+            @Qualifier("openAiChatClient") ChatClient openAiClient
     ) {
-        this.geminiChatClient = client;
-        this.openAiChatClient = client2;
+        this.geminiChatClient = geminiClient;
+        this.openAiChatClient = openAiClient;
     }
 
     @Value("classpath:user_prompts/gen_ques_user_prompt.st")
-    private Resource user_prompt;
-    @Value("classpath:system_prompts/generate_questions_prompt.st")
-    private Resource sys_prompt_generate_questions;
-    @Value("classpath:system_prompts/gen_res_prompt.st")
-    private Resource generate_response;
-    @Value("classpath:user_prompts/gen_res_user_prompt.st")
-    private Resource user_prompt_gen_res;
+    private Resource userPrompt;
 
-    // Generating the interview questions.
+    @Value("classpath:system_prompts/generate_questions_prompt.st")
+    private Resource sysPromptGenerateQuestions;
+
+    @Value("classpath:system_prompts/gen_res_prompt.st")
+    private Resource generateResponse;
+
+    @Value("classpath:user_prompts/gen_res_user_prompt.st")
+    private Resource userPromptGenRes;
+
     public List<String> fetchAiQuestions(String jobRole, String difficulty, User user) {
         Set<Skill> userSkills = user.getUserSkills();
         Integer rating = user.getRating();
 
         return openAiChatClient.prompt()
-                .system(sys -> sys.text(sys_prompt_generate_questions)
-                        .params(Map.of("position", jobRole,  "difficulty", difficulty)))
-                .user(use -> use.text(user_prompt)
-                        .params(Map.of("userSkills",  userSkills,  "userRating", rating)))
+                .system(sys -> sys.text(sysPromptGenerateQuestions)
+                        .params(Map.of("position", jobRole, "difficulty", difficulty)))
+                .user(use -> use.text(userPrompt)
+                        .params(Map.of("userSkills", userSkills, "userRating", rating)))
                 .call()
                 .entity(new ParameterizedTypeReference<List<String>>() {});
     }
 
-    // Generating feedback for the give questions and user responses.
     public String generateResponse(QaLog qaLog) {
         return geminiChatClient.prompt()
-                .system(sys -> sys.text(generate_response))
-                .user(user -> user.text(user_prompt_gen_res)
+                .system(sys -> sys.text(generateResponse))
+                .user(user -> user.text(userPromptGenRes)
                         .params(Map.of(
                                 "question", qaLog.getQuestion(),
-                                "response", qaLog.getUserAnswer() == null ? "no answer provided by user" :
-                                        qaLog.getUserAnswer()
+                                "response", qaLog.getUserAnswer() == null ? "Candidate provided no answer." : qaLog.getUserAnswer()
                         )))
                 .call()
                 .content();
     }
-
-//    public List<String> fetchAiQuestionsWithoutRole(Set<Skill> userSkills) {
-//        return chatClient.prompt()
-//                .system(sys -> sys.text(sys_prompt_generate_questions)
-//                        .param("skillSet", userSkills))
-//                .call()
-//                .entity(new ParameterizedTypeReference<List<String>>() {});
-//    }
 }

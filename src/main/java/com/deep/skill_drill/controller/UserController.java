@@ -4,8 +4,6 @@ import com.deep.skill_drill.dto.*;
 import com.deep.skill_drill.entities.User;
 import com.deep.skill_drill.services.JwtService;
 import com.deep.skill_drill.services.UserService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
@@ -28,66 +26,30 @@ public class UserController {
 
     @GetMapping("/get_user")
     public ResponseEntity<User> getUser(Authentication authentication) {
-        String username = authentication.getName();
-        return ResponseEntity.ok(userService.getUser(username));
+        return ResponseEntity.ok(userService.getUser(authentication.getName()));
     }
 
     @GetMapping("/get_sessions")
-    public ResponseEntity<List<RatingPointDto>> getSessions(
-            Authentication authentication
-    ) {
-        String username = authentication.getName();
-
-        return ResponseEntity.ok(userService.getInterviewRatingHistory(username));
+    public ResponseEntity<List<RatingPointDto>> getSessions(Authentication authentication) {
+        return ResponseEntity.ok(userService.getInterviewRatingHistory(authentication.getName()));
     }
 
     @PutMapping("/update")
-    public ResponseEntity<?> update(@RequestBody UpdateDto user, Authentication auth) {
-        String username = auth.getName();
-        try {
-            userService.updateUser(user, username);
-            return ResponseEntity.status(HttpStatus.OK).body(
-                    (Map.of("message", "Field updated successfully."))
-            );
-        } catch (RuntimeException | UnsupportedEncodingException e) {
-            System.out.println(e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
-                    (Map.of("message", "Failed in updating user."))
-            );
-        }
+    public ResponseEntity<Map<String, String>> update(@RequestBody UpdateDto user, Authentication auth) throws UnsupportedEncodingException {
+        userService.updateUser(user, auth.getName());
+        return ResponseEntity.ok(Map.of("message", "Field updated successfully."));
     }
 
     @PostMapping("/update-email")
-    public ResponseEntity<?> updateEmail(@RequestBody EmailUpdate dto, Authentication auth) {
-        String username = auth.getName();
-        try {
-            userService.initiateEmailUpdate(dto, username);
-            return ResponseEntity.status(HttpStatus.OK).body(
-                    Map.of("message", "Email updated successfully.")
-            );
-        } catch (RuntimeException e) {
-            System.out.println(e.getMessage());
-            return  ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
-                    Map.of("message", e.getMessage())
-            );
-        }
+    public ResponseEntity<Map<String, String>> updateEmail(@RequestBody EmailUpdate dto, Authentication auth) {
+        userService.initiateEmailUpdate(dto, auth.getName());
+        return ResponseEntity.ok(Map.of("message", "Email updated successfully."));
     }
 
     @PostMapping("/complete-email-update")
-    public ResponseEntity<?> updateEmailFinal(@RequestBody OtpPayload dto, Authentication auth) {
-        String username = auth.getName();
-        try {
-            User user = userService.finalizeEmailUpdate(dto, username);
-            String token = jwtService.generateJwtToken(user);
-            return ResponseEntity.status(HttpStatus.OK).body(
-                    new AuthResponse(token, user)
-            );
-        } catch (RuntimeException e) {
-            System.out.println(e.getMessage());
-            return  ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
-                    Map.of("message", e.getMessage())
-            );
-        }
+    public ResponseEntity<AuthResponse> updateEmailFinal(@RequestBody OtpPayload dto, Authentication auth) {
+        User user = userService.finalizeEmailUpdate(dto, auth.getName());
+        String token = jwtService.generateJwtToken(user);
+        return ResponseEntity.ok(new AuthResponse(token, user));
     }
-
 }

@@ -1,20 +1,19 @@
 package com.deep.skill_drill.controller;
 
 import com.deep.skill_drill.dto.AnswerSubmitDTO;
+import com.deep.skill_drill.dto.InterviewDTO;
+import com.deep.skill_drill.dto.SessionResult;
+import com.deep.skill_drill.entities.Interview;
 import com.deep.skill_drill.entities.QaLog;
 import com.deep.skill_drill.entities.User;
 import com.deep.skill_drill.services.InterviewService;
 import com.deep.skill_drill.services.QaLogService;
 import com.deep.skill_drill.services.UserService;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/interview")
@@ -32,80 +31,49 @@ public class InterviewEngineController {
     }
 
     @PostMapping("/start")
-    public ResponseEntity<?> startInterviewEngine(
-        Authentication authentication,
-        @RequestParam("job-role") String jobRole
+    public ResponseEntity<InterviewDTO> startInterviewEngine(
+            Authentication authentication,
+            @RequestParam("job-role") String jobRole
     ) {
-        String username = authentication.getName();
-        User user = userService.getUser(username);
-        try {
-            return ResponseEntity.ok(
-                    interviewService.fetchAndSaveInterview(jobRole, user.getId())
-            );
-        }
-        catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
-        }
+        User user = userService.getUser(authentication.getName());
+        return ResponseEntity.ok(
+                interviewService.fetchAndSaveInterview(jobRole, user.getId())
+        );
     }
 
     @GetMapping("/{interviewId}/questions")
-    public ResponseEntity<?> getInterviewQuestions(@PathVariable Long interviewId) {
-        try {
-            return ResponseEntity.status(HttpStatus.OK).body(
-                    qaLogService.getQuestions(interviewId)
-            );
-        }
-        catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(e.getMessage());
-        }
+    public ResponseEntity<List<QaLog>> getInterviewQuestions(@PathVariable Long interviewId) {
+        return ResponseEntity.ok(
+                qaLogService.getQuestions(interviewId)
+        );
     }
 
     @PostMapping("/user-response")
-    public ResponseEntity<?> userResponse(@RequestBody AnswerSubmitDTO userResponseDTO) {
+    public ResponseEntity<String> userResponse(@RequestBody AnswerSubmitDTO userResponseDTO) {
         return ResponseEntity.ok(qaLogService.storeUserResponse(userResponseDTO));
     }
 
     @PostMapping("/{sessionId}/finalize")
-    public ResponseEntity<?> getScore(@PathVariable Long sessionId,
-                                                         @RequestBody AnswerSubmitDTO finalAnswer) {
-        try {
-            return ResponseEntity.status(HttpStatus.OK).body(
-                    (interviewService.calFinalScore(sessionId, finalAnswer))
-            );
-        }
-        catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(e.getMessage());
-        }
+    public ResponseEntity<SessionResult> getScore(
+            @PathVariable Long sessionId,
+            @RequestBody AnswerSubmitDTO finalAnswer
+    ) {
+        return ResponseEntity.ok(
+                interviewService.calculateFinalScore(sessionId, finalAnswer)
+        );
     }
 
     @GetMapping("/{sessionId}/result")
-    public ResponseEntity<?> getHistory(@PathVariable Long sessionId) {
-        try{
-            return ResponseEntity.status(HttpStatus.OK).body(
-                    interviewService.getHistoryById(sessionId)
-            );
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+    public ResponseEntity<SessionResult> getHistory(@PathVariable Long sessionId) {
+        return ResponseEntity.ok(
+                interviewService.getHistoryById(sessionId)
+        );
     }
 
     @GetMapping("/my-sessions")
-    public ResponseEntity<?> getMySessions(Authentication authentication) {
-        String username = authentication.getName();
-        try {
-            return ResponseEntity.status(HttpStatus.OK).body(
-                    interviewService.getUserHistory(username)
-            );
-        } catch (UsernameNotFoundException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
-                    Map.of("message","No User Exists with This Username"));
-        } catch (RuntimeException e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
-                    Map.of("message",e.getMessage())
-            );
-        }
+    public ResponseEntity<List<Interview>> getMySessions(Authentication authentication) {
+        return ResponseEntity.ok(
+                interviewService.getUserHistory(authentication.getName())
+        );
     }
-
 }
