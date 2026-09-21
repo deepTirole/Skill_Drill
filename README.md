@@ -9,7 +9,7 @@ System Architecture & Highlights
 3.) Asynchronous Evaluation Loop: Decouples the AI grading logic using Spring's @Async worker threads to process technical answers in the background without holding HTTP connection threads hostage, ensuring client-side stability.
 
 Core Technologies
-1.) Backend Ecosystem: Java, Spring Boot, Spring Security, Spring AI, Spring Retry.
+1.) Backend Ecosystem: Java, Spring Boot, Spring Security, Spring AI.
 
 2.) Database & ORM: PostgreSQL with a highly normalized schema (mapping Strong and Weak entities via explicit cascade styling) and Hibernate ORM/Spring Data JPA.
 
