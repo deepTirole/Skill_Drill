@@ -1,6 +1,7 @@
 package com.deep.skill_drill.config;
 
 import com.deep.skill_drill.services.JwtService;
+import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.Cookie;
@@ -48,33 +49,37 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
 
-        String username  = jwtService.extractUsername(authToken);
+        try {
+            String username = jwtService.extractUsername(authToken);
 
-        Authentication authentication =
-                SecurityContextHolder.getContext().getAuthentication();
+            Authentication authentication =
+                    SecurityContextHolder.getContext().getAuthentication();
 
-        if(username != null && authentication == null) {
-            UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+            if(username != null && authentication == null) {
+                UserDetails userDetails = userDetailsService.loadUserByUsername(username);
 
-            if(jwtService.isTokenValid(authToken, userDetails)) {
+                if(jwtService.isTokenValid(authToken, userDetails)) {
 
-                String role = jwtService.extractRole(authToken);
+                    String role = jwtService.extractRole(authToken);
 
-                List<GrantedAuthority> authorities = List.of(new SimpleGrantedAuthority(role));
+                    List<GrantedAuthority> authorities = List.of(new SimpleGrantedAuthority(role));
 
-                UsernamePasswordAuthenticationToken authenticationToken =
-                        new UsernamePasswordAuthenticationToken(
-                                userDetails, null, authorities
-                        );
+                    UsernamePasswordAuthenticationToken authenticationToken =
+                            new UsernamePasswordAuthenticationToken(
+                                    userDetails, null, authorities
+                            );
 
-                authenticationToken.setDetails(
-                    new WebAuthenticationDetailsSource()
-                            .buildDetails(request)
-                );
+                    authenticationToken.setDetails(
+                            new WebAuthenticationDetailsSource()
+                                    .buildDetails(request)
+                    );
 
-                SecurityContextHolder.getContext()
-                        .setAuthentication(authenticationToken);
+                    SecurityContextHolder.getContext()
+                            .setAuthentication(authenticationToken);
+                }
             }
+        } catch (JwtException | IllegalArgumentException e) {
+            SecurityContextHolder.clearContext();
         }
 
         filterChain.doFilter(request, response);
