@@ -1,2 +1,18 @@
-/mvnw text eol=lf
-*.cmd text eol=crlf
+# Environment & Secret files
+.env
+*.env
+*.env.*
+*.list
+
+# Build & Dependency Artifacts
+target/
+*.jar
+*.war
+
+# IDE files (Prevent leaking run configuration secrets)
+.idea/
+*.iml
+.vscode/
+
+.DS_Store
+Thumbs.db

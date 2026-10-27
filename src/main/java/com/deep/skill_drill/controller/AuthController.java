@@ -1,9 +1,6 @@
 package com.deep.skill_drill.controller;
 
-import com.deep.skill_drill.dto.LoginCredential;
-import com.deep.skill_drill.dto.AuthResponse;
-import com.deep.skill_drill.dto.RegisterDto;
-import com.deep.skill_drill.dto.ResetPassword;
+import com.deep.skill_drill.dto.*;
 import com.deep.skill_drill.entities.User;
 import com.deep.skill_drill.services.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,7 +16,9 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.io.IOException;
 import java.io.UnsupportedEncodingException;
+import java.security.GeneralSecurityException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -62,9 +61,34 @@ public class AuthController {
         }
     }
 
+    @PostMapping("/oauth/google")
+    public ResponseEntity<Map<String, String>> googleLogin(@RequestBody OAuthRequest request) throws GeneralSecurityException, IOException {
+        String appJwt = this.userService.verifyAndProcessGoogleUser(request.getIdToken());
+
+        ResponseCookie cookie = ResponseCookie.from("jwt-token", appJwt)
+                .httpOnly(true)
+                .secure(true)
+                .path("/")
+                .maxAge(60 * 60 * 2)
+                .sameSite("Lax")
+                .domain(".skill-drill.dev")
+                .build();
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, cookie.toString())
+                .body(Map.of(
+                        "message", "Google login successful"
+                ));
+    }
+
     @PostMapping("/login")
     public ResponseEntity<?> loginUser(@RequestBody LoginCredential user) {
         String response = this.userService.verifyUser(user);
+
+        if("Invalid username or password".equals(response))
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
+                    Map.of("error", "Invalid credentials.")
+            );
 
         ResponseCookie cookie = ResponseCookie.from("jwt-token", response)
                 .httpOnly(true)
@@ -72,16 +96,28 @@ public class AuthController {
                 .path("/")
                 .maxAge(60 * 60 * 2)
                 .sameSite("Lax")
+                .domain(".skill-drill.dev")
                 .build();
-
-        if("Invalid username or password".equals(response))
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
-                    Map.of("error", "Invalid credentials.")
-            );
 
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, cookie.toString())
                 .body(Map.of("message", "User logged in successfully"));
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<?> logout() {
+        ResponseCookie expiredCookie = ResponseCookie.from("jwt-token", "")
+                .httpOnly(true)
+                .secure(true)
+                .path("/")
+                .maxAge(0)
+                .sameSite("Lax")
+                .domain(".skill-drill.dev")
+                .build();
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, expiredCookie.toString())
+                .body(Map.of("message", "Logged out successfully"));
     }
 
     @GetMapping("/forget-password")
