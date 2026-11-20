@@ -8,6 +8,7 @@ import com.deep.skill_drill.dto.SessionResult;
 import com.deep.skill_drill.entities.Interview;
 import com.deep.skill_drill.entities.QaLog;
 import com.deep.skill_drill.entities.User;
+import com.deep.skill_drill.exceptions.ResourceNotFoundException;
 import com.deep.skill_drill.repositories.InterviewRepo;
 import com.deep.skill_drill.repositories.QaLogsRepo;
 import com.deep.skill_drill.repositories.UserRepo;
@@ -165,12 +166,12 @@ public class InterviewService {
     public List<Interview> getUserHistory(String username) {
         User user = userRepo.findByUsername(username);
         if (user == null) {
-            throw new UsernameNotFoundException("User not found: " + username);
+            throw new ResourceNotFoundException("USER_NOT_FOUND", "User not found: " + username);
         }
 
         List<Interview> records = interviewRepo.findByUserId(user.getId());
         if (records.isEmpty()) {
-            throw new EntityNotFoundException("No Interview History found for user: " + username);
+            throw new ResourceNotFoundException("INTERVIEW_HISTORY_NOT_FOUND", "No interview history found for user: " + username);
         }
         return records;
     }

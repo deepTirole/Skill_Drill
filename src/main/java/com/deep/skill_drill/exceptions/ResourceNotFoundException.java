@@ -1,0 +1,9 @@
+package com.deep.skill_drill.exceptions;
+
+import org.springframework.http.HttpStatus;
+
+public class ResourceNotFoundException extends AppException {
+    public ResourceNotFoundException(String code, String message) {
+        super(HttpStatus.NOT_FOUND, code, message);
+    }
+}

@@ -4,6 +4,8 @@ import com.deep.skill_drill.dto.ResumeMetaDto;
 import com.deep.skill_drill.entities.ResumeMetadata;
 import com.deep.skill_drill.entities.Skill;
 import com.deep.skill_drill.entities.User;
+import com.deep.skill_drill.exceptions.BadRequestException;
+import com.deep.skill_drill.exceptions.ResourceNotFoundException;
 import com.deep.skill_drill.repositories.ResumeRepo;
 import com.deep.skill_drill.repositories.UserRepo;
 import com.deep.skill_drill.services.ResumeService;
@@ -33,33 +35,21 @@ public class ResumeController {
 
     @PostMapping("/upload")
     public ResponseEntity<User> upload(@RequestParam("file") MultipartFile file,
-                                       Authentication authentication) throws IOException
-    {
-        System.out.println("upload hit");
-        try {
-            String username = authentication.getName();
-            User user = userRepo.findByUsername(username);
-            if(user==null)
-                throw new UsernameNotFoundException("Username not found");
-
-            return ResponseEntity.ok(resumeService.saveResume(file, user));
-        } catch (IOException | TikaException e) {
-            return ResponseEntity.badRequest().body(null);
+                                       Authentication authentication) {
+        String username = authentication.getName();
+        User user = userRepo.findByUsername(username);
+        if (user == null) {
+            throw new ResourceNotFoundException("USER_NOT_FOUND", "Username not found");
         }
+        if (file == null || file.isEmpty()) {
+            throw new BadRequestException("RESUME_EMPTY", "A resume file is required");
+        }
+        return ResponseEntity.ok(resumeService.saveResume(file, user));
     }
 
     @GetMapping("/get-resume")
-    public ResponseEntity<?> getResume(
-            Authentication authentication
-    ) {
-        String username =  authentication.getName();
-        try {
-            return ResponseEntity.status(HttpStatus.OK)
-                    .body(resumeService.getResume(username));
-        } catch (RuntimeException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(Map.of("message", e.getMessage()));
-        }
+    public ResponseEntity<?> getResume(Authentication authentication) {
+        return ResponseEntity.ok(resumeService.getResume(authentication.getName()));
     }
 
     @GetMapping("/get_user_skills")

@@ -1,7 +1,12 @@
 package com.deep.skill_drill.dto;
 
+import jakarta.validation.constraints.NotBlank;
+
 public class LoginCredential {
+
+    @NotBlank(message = "username is required")
     private String username;
+    @NotBlank(message = "password is required")
     private String password;
 
     public String getUsername() {

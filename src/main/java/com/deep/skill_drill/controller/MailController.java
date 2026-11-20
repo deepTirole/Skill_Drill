@@ -1,6 +1,10 @@
 package com.deep.skill_drill.controller;
 
 import com.deep.skill_drill.dto.OtpPayload;
+import com.deep.skill_drill.exceptions.BadRequestException;
+import com.deep.skill_drill.exceptions.GoneException;
+import com.deep.skill_drill.exceptions.TooManyRequestsException;
+import jakarta.validation.Valid;
 import com.deep.skill_drill.dto.OtpResponse;
 import com.deep.skill_drill.services.UserService;
 import org.springframework.http.HttpStatus;
@@ -27,16 +31,16 @@ public class MailController {
     }
 
     @PostMapping("/verify-otp")
-    public ResponseEntity<Map<String, String>> verifyOtp(@RequestBody OtpPayload otpPayload) {
+    public ResponseEntity<Map<String, String>> verifyOtp(@Valid @RequestBody OtpPayload otpPayload) {
         String res = userService.verifyAndEnableUser(otpPayload.getEmail(), otpPayload.getOtp());
 
         return switch (res) {
             case "SUCCESS" -> ResponseEntity.ok(Map.of("message", "Registration successful"));
-            case "INVALID_OTP" -> ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("message", "Invalid OTP"));
-            case "TOO_MANY_ATTEMPTS" -> ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(Map.of("message", "Too many attempts"));
-            case "SESSION_EXPIRED" -> ResponseEntity.status(HttpStatus.GONE).body(Map.of("message", "Session expired, please register again"));
-            case "OTP_EXPIRED" -> ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("message", "Otp expired, new otp sent to your email"));
-            default -> ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("message", "Something went wrong"));
+            case "INVALID_OTP" -> throw new BadRequestException("INVALID_OTP", "Invalid OTP");
+            case "TOO_MANY_ATTEMPTS" -> throw new TooManyRequestsException("OTP_ATTEMPTS_EXCEEDED", "Too many OTP attempts");
+            case "SESSION_EXPIRED" -> throw new GoneException("OTP_SESSION_EXPIRED", "Session expired, please register again");
+            case "OTP_EXPIRED" -> throw new BadRequestException("OTP_EXPIRED", "OTP expired, a new OTP was sent to your email");
+            default -> throw new com.deep.skill_drill.exceptions.ExternalServiceException("OTP_PROCESSING_FAILED", "OTP verification could not be completed");
         };
     }
 }

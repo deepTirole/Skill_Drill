@@ -4,6 +4,9 @@ import com.deep.skill_drill.dto.ResumeMetaDto;
 import com.deep.skill_drill.entities.ResumeMetadata;
 import com.deep.skill_drill.entities.Skill;
 import com.deep.skill_drill.entities.User;
+import com.deep.skill_drill.exceptions.BadRequestException;
+import com.deep.skill_drill.exceptions.ExternalServiceException;
+import com.deep.skill_drill.exceptions.ResourceNotFoundException;
 import com.deep.skill_drill.repositories.ResumeRepo;
 import com.deep.skill_drill.repositories.UserRepo;
 import jakarta.persistence.EntityNotFoundException;
@@ -57,9 +60,20 @@ public class ResumeService {
                 .entity(new ParameterizedTypeReference<List<String>>() {});
     }
 
-    public User saveResume(MultipartFile file, User user) throws IOException, TikaException {
-        String resumeText = this.parseResume(file);
-        List<String> extractedSkills = this.extractSkills(resumeText);
+    public User saveResume(MultipartFile file, User user) {
+        String resumeText;
+        try {
+            resumeText = this.parseResume(file);
+        } catch (TikaException | IOException e) {
+            throw new BadRequestException("RESUME_PARSE_FAILED", "The uploaded resume could not be parsed. Please upload a valid PDF", e);
+        }
+
+        List<String> extractedSkills;
+        try {
+            extractedSkills = this.extractSkills(resumeText);
+        } catch (Exception e) {
+            throw new ExternalServiceException("AI_SKILL_EXTRACTION_FAILED", "Resume skill extraction is temporarily unavailable", e);
+        }
 
         user.getUserSkills().clear();
         userService.updateUserSkills(user.getId(), extractedSkills);
@@ -77,7 +91,7 @@ public class ResumeService {
     public @Nullable ResumeMetaDto getResume(String username) {
         ResumeMetadata resumeMetadata = resumeRepo
                 .findByUserUsername(username)
-                .orElseThrow(() -> new EntityNotFoundException("No resume found for username: " + username));
+                .orElseThrow(() -> new ResourceNotFoundException("RESUME_NOT_FOUND", "No resume found for username: " + username));
 
         ResumeMetaDto resumeMetaDto = new ResumeMetaDto();
         resumeMetaDto.setFilename(resumeMetadata.getFileName());
@@ -89,7 +103,7 @@ public class ResumeService {
     public Set<Skill> getUserSkills(String username) {
         User user = userRepo.findByUsername(username);
         if (user == null) {
-            throw new EntityNotFoundException("User not found: " + username);
+            throw new ResourceNotFoundException("USER_NOT_FOUND", "User not found: " + username);
         }
         return user.getUserSkills();
     }

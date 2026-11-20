@@ -13,6 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import jakarta.validation.Valid;
 import java.util.List;
 
 @RestController
@@ -49,7 +50,7 @@ public class InterviewEngineController {
     }
 
     @PostMapping("/user-response")
-    public ResponseEntity<String> userResponse(@RequestBody AnswerSubmitDTO userResponseDTO) {
+    public ResponseEntity<String> userResponse(@Valid @RequestBody AnswerSubmitDTO userResponseDTO) {
         return ResponseEntity.ok(qaLogService.storeUserResponse(userResponseDTO));
     }
 

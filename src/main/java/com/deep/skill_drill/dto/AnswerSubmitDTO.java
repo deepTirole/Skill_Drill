@@ -1,8 +1,14 @@
 package com.deep.skill_drill.dto;
 
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+
 public class AnswerSubmitDTO {
 
+    @NotNull(message = "qaLogId is required")
+
     private Long qaLogId;
+    @NotBlank(message = "userResponse is required")
     private String userResponse;
 
     public Long getQaLogId() {

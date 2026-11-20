@@ -1,6 +1,11 @@
 package com.deep.skill_drill.services;
 
 import com.deep.skill_drill.dto.*;
+import com.deep.skill_drill.exceptions.BadRequestException;
+import com.deep.skill_drill.exceptions.ConflictException;
+import com.deep.skill_drill.exceptions.ExternalServiceException;
+import com.deep.skill_drill.exceptions.ResourceNotFoundException;
+import com.deep.skill_drill.exceptions.UnauthorizedException;
 import com.deep.skill_drill.entities.PendingEmail;
 import com.deep.skill_drill.entities.PendingRegistration;
 import com.deep.skill_drill.entities.Skill;
@@ -66,7 +71,7 @@ public class UserService {
     public void registerUser(User user) {
         // 1. Block if already a verified user
         if (userRepo.findByUsername(user.getUsername()) != null) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Username already exists");
+            throw new ConflictException("USERNAME_EXISTS", "Username already exists");
         }
 
         String otp = mailService.generateOtp();
@@ -98,7 +103,7 @@ public class UserService {
             mailService.sendOtpMail(pending.getUsername(), otp);
         } catch (Exception e) {
             pendingRepo.delete(pending);
-            throw new RuntimeException("Failed to send OTP email. Please try again.");
+            throw new ExternalServiceException("OTP_DELIVERY_FAILED", "Failed to send OTP email. Please try again.", e);
         }
     }
 
@@ -154,9 +159,9 @@ public class UserService {
                 return jwtService.generateJwtToken(freshUser);
             }
         } catch (BadCredentialsException e) {
-            return "Invalid username or password";
+            throw new UnauthorizedException("INVALID_CREDENTIALS", "Invalid username or password");
         }
-        throw new RuntimeException("Authentication Failed");
+        throw new UnauthorizedException("AUTHENTICATION_FAILED", "Authentication failed");
     }
 
     @Transactional
@@ -169,7 +174,7 @@ public class UserService {
 
             GoogleIdToken idToken = verifier.verify(idTokenString);
             if (idToken == null) {
-                throw new IllegalArgumentException("Invalid Google ID token");
+                throw new BadRequestException("GOOGLE_TOKEN_INVALID", "Invalid Google ID token");
             }
 
             GoogleIdToken.Payload payload = idToken.getPayload();
@@ -190,14 +195,18 @@ public class UserService {
             return jwtService.generateJwtToken(user);
 
         } catch (Exception e) {
-            throw new IllegalArgumentException("Google authentication failed: " + e.getMessage());
+            throw new UnauthorizedException("GOOGLE_AUTH_FAILED", "Google authentication failed", e);
         }
     }
 
     // ─── User Queries ─────────────────────────────────────────────────────────────
 
     public User getUser(String username) {
-        return userRepo.findByUsername(username);
+        User user = userRepo.findByUsername(username);
+        if (user == null) {
+            throw new ResourceNotFoundException("USER_NOT_FOUND", "User not found: " + username);
+        }
+        return user;
     }
 
     @Transactional
@@ -247,7 +256,7 @@ public class UserService {
                 pendingRepo.findByUsername(sanitizedEmail);
 
         if(pending == null)
-            throw new RuntimeException("Session expired!!");
+            throw new ResourceNotFoundException("OTP_SESSION_NOT_FOUND", "OTP session expired or does not exist");
 
         String otp = mailService.generateOtp();
 
@@ -264,7 +273,7 @@ public class UserService {
         User user = userRepo.findByUsername(email);
 
         if (user == null) {
-            throw new RuntimeException("User not found");
+            throw new ResourceNotFoundException("USER_NOT_FOUND", "User not found");
         }
 
         String token = UUID.randomUUID().toString();
@@ -279,13 +288,12 @@ public class UserService {
                 .orElse(null);
 
         if(user == null || user.getResetExpiry().isBefore(LocalDateTime.now())) {
-            throw new UsernameNotFoundException("Invalid Or Expired Token");
+            throw new BadRequestException("RESET_TOKEN_INVALID", "Reset token is invalid or expired");
         }
 
         dto.setPassword(encoder.encode(dto.getPassword()));
         if(encoder.matches(user.getPassword(), dto.getPassword())) {
-            System.out.println(false);
-            throw new IllegalArgumentException("Password Should Not Match With Previous Password");
+            throw new BadRequestException("PASSWORD_REUSED", "New password must differ from the previous password");
         }
 
         user.setPassword(dto.getPassword());
@@ -298,7 +306,7 @@ public class UserService {
     public void updateUser(UpdateDto user, String username) throws UnsupportedEncodingException {
         User dbUser = userRepo.findByUsername(username);
         if(dbUser == null) {
-            throw new RuntimeException("User not found");
+            throw new ResourceNotFoundException("USER_NOT_FOUND", "User not found");
         }
 
         if(user.getFullname() != null) {
@@ -311,7 +319,7 @@ public class UserService {
             if(encoder.matches(user.getCurrentPassword(), dbUser.getPassword())) {
                 dbUser.setPassword(encoder.encode(user.getNewPassword()));
             }
-            else throw new RuntimeException("Password Mismatch");
+            else             throw new UnauthorizedException("PASSWORD_MISMATCH", "Current password is incorrect");
         }
 
         userRepo.save(dbUser);
@@ -325,16 +333,16 @@ public class UserService {
     public void initiateEmailUpdate(EmailUpdate dto, String username) {
         User user = userRepo.findByUsername(username);
         if(user == null)
-            throw new RuntimeException("User not found");
+            throw new ResourceNotFoundException("USER_NOT_FOUND", "User not found");
 
         if(!encoder.matches(dto.getPassword(), user.getPassword()))
-            throw new RuntimeException("Authentication Failed: Invalid Password");
+            throw new UnauthorizedException("INVALID_PASSWORD", "Current password is incorrect");
 
         if(username.equals(dto.getEmail()))
-            throw new RuntimeException("Current Email Should Not Match With New Email");
+            throw new BadRequestException("EMAIL_UNCHANGED", "New email must differ from the current email");
 
         if(userRepo.existsByUsername(dto.getEmail()))
-            throw new RuntimeException("Account With Email already Exists");
+            throw new ConflictException("EMAIL_EXISTS", "An account with this email already exists");
 
         PendingEmail pendingEmail = emailRepo.findByEmail(dto.getEmail());
         if(pendingEmail == null)
@@ -350,7 +358,7 @@ public class UserService {
 
             emailRepo.save(pendingEmail);
         } catch (RuntimeException e) {
-            throw new RuntimeException("Error In Sending Email! Try After Some Time");
+            throw new ExternalServiceException("EMAIL_DELIVERY_FAILED", "Email could not be sent. Please try again later", e);
         }
     }
 
@@ -358,16 +366,16 @@ public class UserService {
     public User finalizeEmailUpdate(OtpPayload dto, String username) {
         User user  = userRepo.findByUsername(username);
         if(user == null)
-            throw new RuntimeException("User not found");
+            throw new ResourceNotFoundException("USER_NOT_FOUND", "User not found");
 
         PendingEmail pendingEmail = emailRepo.findByEmail(dto.getEmail());
         if(pendingEmail == null)
-            throw new RuntimeException("Invalid Email! Try Again From Start");
+            throw new BadRequestException("EMAIL_UPDATE_SESSION_INVALID", "Email update session is invalid. Please start again");
 
         if(!encoder.matches(dto.getOtp(), pendingEmail.getOtpHash()) ||
             LocalDateTime.now().isAfter(pendingEmail.getExpiresAt())
         )
-            throw new RuntimeException("Invalid Or Expired Otp Try Resend Otp");
+            throw new BadRequestException("OTP_INVALID_OR_EXPIRED", "OTP is invalid or expired. Please resend it") ;
 
         user.setUsername(dto.getEmail());
         emailRepo.delete(pendingEmail);

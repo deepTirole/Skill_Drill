@@ -12,7 +12,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -36,29 +36,14 @@ public class AuthController {
     }
 
     @PostMapping("/register")
-    public ResponseEntity<?> registerUser(@RequestBody RegisterDto user) {
-        try {
+    public ResponseEntity<?> registerUser(@Valid @RequestBody RegisterDto user) {
             User newUser = new User();
             newUser.setUsername(user.getUsername());
             newUser.setPassword(user.getPassword());
             newUser.setFullname(user.getFullname());
 
-            userService.registerUser(newUser);
-            return ResponseEntity.ok().body(Map.of("message", "User registered successfully"));
-        }
-        catch (ResponseStatusException e) {
-            assert e.getReason() != null;
-            return ResponseEntity.status(e.getStatusCode())
-                    .body(Map.of("error", e.getReason()));
-
-        } catch (DataIntegrityViolationException e) {
-            return ResponseEntity.status(HttpStatus.CONFLICT)
-                    .body(Map.of("error", "Username already exists"));
-
-        } catch (RuntimeException e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", e.getMessage()));
-        }
+        userService.registerUser(newUser);
+        return ResponseEntity.ok().body(Map.of("message", "User registered successfully"));
     }
 
     @PostMapping("/oauth/google")
@@ -82,21 +67,18 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<?> loginUser(@RequestBody LoginCredential user) {
+    public ResponseEntity<?> loginUser(@Valid @RequestBody LoginCredential user) {
         String response = this.userService.verifyUser(user);
-
-        if("Invalid username or password".equals(response))
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
-                    Map.of("error", "Invalid credentials.")
-            );
 
         ResponseCookie cookie = ResponseCookie.from("jwt-token", response)
                 .httpOnly(true)
-                .secure(true)
+//                .secure(true)
+                .secure(false)
                 .path("/")
                 .maxAge(60 * 60 * 2)
-                .sameSite("Lax")
-                .domain(".skill-drill.dev")
+//                .sameSite("Lax")
+                .sameSite("None")
+//                .domain(".skill-drill.dev")
                 .build();
 
         return ResponseEntity.ok()
@@ -122,35 +104,14 @@ public class AuthController {
 
     @GetMapping("/forget-password")
     public ResponseEntity<?> forgetPassword(@RequestParam("email") String email) {
-        try {
-            userService.generateResetToken(email);
-            return ResponseEntity.status(HttpStatus.OK).body(Map.of("message", "Reset link successfully sent"));
-        } catch (RuntimeException e) {
-            System.out.println(e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("message", e.getMessage()));
-        }
+        userService.generateResetToken(email);
+        return ResponseEntity.ok(Map.of("message", "Reset link successfully sent"));
     }
 
     @PostMapping("/reset-password")
-    public ResponseEntity<?> resetPassword(@RequestBody ResetPassword dto) {
-        try {
-            userService.resetPassword(dto);
-            return ResponseEntity.status(HttpStatus.OK).body(Map.of(
-                    "SUCCESS", "Password reset successfully"
-            ));
-        } catch (UsernameNotFoundException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
-                    "message", "Error in resetting password: " + e.getMessage()
-            ));
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.status(HttpStatus.NOT_ACCEPTABLE).body(Map.of(
-                    "message", "Error in resetting password: " + e.getMessage()
-            ));
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
-                    "message", "Error in resetting password: " + e.getMessage()
-            ));
-        }
+    public ResponseEntity<?> resetPassword(@Valid @RequestBody ResetPassword dto) {
+        userService.resetPassword(dto);
+        return ResponseEntity.ok(Map.of("message", "Password reset successfully"));
     }
 
     @GetMapping("/status")

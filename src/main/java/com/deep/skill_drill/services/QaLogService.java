@@ -4,6 +4,7 @@ import com.deep.skill_drill.dto.AnswerSubmitDTO;
 import com.deep.skill_drill.entities.Interview;
 import com.deep.skill_drill.entities.QaLog;
 import com.deep.skill_drill.repositories.QaLogsRepo;
+import com.deep.skill_drill.exceptions.ResourceNotFoundException;
 import jakarta.persistence.EntityNotFoundException;
 import org.jspecify.annotations.Nullable;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -46,7 +47,7 @@ public class QaLogService {
 
     public @Nullable String storeUserResponse(AnswerSubmitDTO answerSubmitDTO) {
         QaLog qaLog = qaLogsRepo.findById(answerSubmitDTO.getQaLogId())
-                .orElseThrow(() -> new EntityNotFoundException("QaLog not found for ID: " + answerSubmitDTO.getQaLogId()));
+                .orElseThrow(() -> new ResourceNotFoundException("ANSWER_NOT_FOUND", "Answer record not found for ID: " + answerSubmitDTO.getQaLogId()));
 
         qaLog.setUserAnswer(answerSubmitDTO.getUserResponse());
 
