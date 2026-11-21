@@ -2,9 +2,19 @@ package com.deep.skill_drill.entities;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 import org.checkerframework.common.aliasing.qual.Unique;
+import org.springframework.stereotype.Service;
 
 import java.util.Set;
+
+@Getter
+@Setter
+@AllArgsConstructor
+@NoArgsConstructor
 
 @Entity
 @Table(name = "skills")
@@ -19,32 +29,4 @@ public class Skill {
     @ManyToMany(mappedBy = "userSkills")
     @JsonIgnore
     private Set<User> users;
-
-    public Skill() {
-        super();
-    }
-
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public String getSkillName() {
-        return skillName;
-    }
-
-    public void setSkillName(String skillName) {
-        this.skillName = skillName;
-    }
-
-    public Set<User> getUsers() {
-        return users;
-    }
-
-    public void setUsers(Set<User> users) {
-        this.users = users;
-    }
 }
