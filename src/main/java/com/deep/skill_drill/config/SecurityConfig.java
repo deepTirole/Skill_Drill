@@ -45,16 +45,7 @@ public class SecurityConfig {
                 .cors(Customizer.withDefaults())
                 .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(request -> request
-                        .requestMatchers("/auth/register",
-                                "/auth/login",
-                                "/mail/send-otp",
-                                "/mail/verify-otp",
-                                "/mail/resend-otp",
-                                "/auth/forget-password",
-                                "/auth/reset-password",
-                                "/auth/oauth/google",
-                                "/auth/logout"
-                        ).permitAll()
+                        .requestMatchers("/auth/**").permitAll()
 
                         .requestMatchers("/auth/status").hasAnyRole("STUDENT", "UNVERIFIED")
                         .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()

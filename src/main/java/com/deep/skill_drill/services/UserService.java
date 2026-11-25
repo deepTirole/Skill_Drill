@@ -25,6 +25,7 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -102,7 +103,6 @@ public class UserService {
         try {
             mailService.sendOtpMail(pending.getUsername(), otp);
         } catch (Exception e) {
-            pendingRepo.delete(pending);
             throw new ExternalServiceException("OTP_DELIVERY_FAILED", "Failed to send OTP email. Please try again.", e);
         }
     }
@@ -137,11 +137,21 @@ public class UserService {
             return "INVALID_OTP";
         }
 
+        if (userRepo.findByUsername(pending.getUsername()) != null) {
+            pendingRepo.delete(pending);
+            throw new ConflictException("USERNAME_EXISTS", "Username already exists");
+        }
+
         User newUser = new User();
         newUser.setUsername(pending.getUsername());
         newUser.setFullname(pending.getFullname());
         newUser.setPassword(pending.getPassword());
-        userRepo.save(newUser);
+
+        try {
+            userRepo.saveAndFlush(newUser);
+        } catch (DataIntegrityViolationException e) {
+            throw new ConflictException("USERNAME_EXISTS", "Username already exists");
+        }
 
         pendingRepo.delete(pending);
         return "SUCCESS";

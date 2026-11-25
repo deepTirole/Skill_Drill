@@ -52,11 +52,12 @@ public class AuthController {
 
         ResponseCookie cookie = ResponseCookie.from("jwt-token", appJwt)
                 .httpOnly(true)
-                .secure(true)
+//                .secure(true)
+                .secure(false)
                 .path("/")
                 .maxAge(60 * 60 * 2)
                 .sameSite("Lax")
-                .domain(".skill-drill.dev")
+//                .domain(".skill-drill.dev")
                 .build();
 
         return ResponseEntity.ok()
@@ -76,8 +77,8 @@ public class AuthController {
                 .secure(false)
                 .path("/")
                 .maxAge(60 * 60 * 2)
-//                .sameSite("Lax")
-                .sameSite("None")
+                .sameSite("Lax")
+//                .sameSite("None")
 //                .domain(".skill-drill.dev")
                 .build();
 
